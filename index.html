@@ -485,7 +485,8 @@ body{overscroll-behavior:none;touch-action:manipulation}
 <script>
 (function(){
   var DAYS=['Mo','Di','Mi','Do','Fr','Sa','So'];
-  var KEY='habit-proto-v2';
+  var KEY='habits-v1';
+  try{localStorage.removeItem('habit-proto-v2');}catch(e){}   /* alte Beispieldaten entfernen */
   var COLORS={blue:['#0093e7','#5ccbff'],green:['#16ec06','#16ec06'],amber:['#ffde00','#ffde00'],red:['#ff0026','#ff0026'],rest:['#6f8089','#6f8089']};   /* WHOOP-Originalfarben: Recovery High/Medium/Low, Strain */
   var pad=function(n){return String(n).padStart(2,'0');};
   var key=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
@@ -501,31 +502,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
   var todayKey=key(today);
   var oldest=addDays(today,-34);
 
-  function seed(){
-    var habits=[
-      {id:'h1',name:'Wasser trinken',target:8},
-      {id:'h2',name:'Vokabeln lernen',target:1},
-      {id:'h3',name:'30 Min Bewegung',target:1},
-      {id:'h4',name:'20 Min lesen',target:1},
-      {id:'h5',name:'Tagesreflexion',target:1},
-      {id:'h6',name:'Vor 23 Uhr ins Bett',target:1}
-    ];
-    var p=[0.85,0.8,0.7,0.75,0.65,0.7];
-    var s=11;
-    var rnd=function(){s=(s*9301+49297)%233280;return s/233280;};
-    var log={};
-    for(var i=34;i>=1;i--){
-      var k=key(addDays(today,-i));
-      log[k]={};
-      habits.forEach(function(h,idx){
-        if(rnd()<p[idx]){log[k][h.id]=h.target;}
-        else if(h.target>1){log[k][h.id]=Math.floor(h.target*rnd());}
-      });
-    }
-    log[todayKey]={h1:3,h2:1,h3:1};
-    var times={};times[todayKey]={h2:'07:40',h3:'12:15'};
-    return {habits:habits,log:log,times:times};
-  }
+  function seed(){return {habits:[],log:{},times:{}};}   /* Start ohne Beispieldaten */
   function load(){
     try{
       var raw=localStorage.getItem(KEY);
@@ -553,6 +530,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
   /* Zeitplan: h.days = Wochentage (0=Mo … 6=So); fehlt das Feld, ist das Habit täglich */
   function wdOf(k){return (parse(k).getDay()+6)%7;}
   function sched(h,k){
+    if(h.created&&k<h.created)return false;   /* vor dem Anlegen gab es das Habit noch nicht */
     if(h.every>1){   /* alle N Tage, gezählt ab dem Starttag */
       var df=Math.round((parse(k)-parse(h.start||todayKey))/864e5);
       return df>=0&&df%h.every===0;
@@ -562,7 +540,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
   function isCustom(h){return h.every>1||(h.days&&h.days.length<7);}
   function habitsOn(k){return state.habits.filter(function(h){return sched(h,k);});}
   function total(k){return habitsOn(k).length;}
-  function isRest(k){return state.habits.length>0&&total(k)===0;}
+  function isRest(k){return total(k)===0;}
   function daysLabel(h){
     if(h.every>1)return 'Alle '+h.every+' Tage';
     if(!h.days||h.days.length===7)return 'Täglich';
@@ -760,7 +738,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
       if(isT&&total(k))endLabel='<text class="val" x="'+(L+i*slot+slot/2)+'" y="'+(y-5)+'" text-anchor="middle">'+Math.round(f*100)+'</text>';
       chartData.push({
         cx:L+i*slot+slot/2,
-        value:total(k)?doneCount(k)+' von '+total(k)+' · '+Math.round(f*100)+' %':'Nichts geplant',
+        value:total(k)?doneCount(k)+' von '+total(k)+' · '+Math.round(f*100)+' %':(state.habits.length?'Nichts geplant':'Noch keine Habits'),
         label:(isT?'Heute, ':'')+wd+' '+fmt(d,{day:'numeric',month:'short'})
       });
       hits+='<rect class="hit" data-bar="'+i+'" tabindex="0" x="'+(L+i*slot)+'" y="0" width="'+slot+'" height="'+(H-2)+'" rx="6" aria-label="'+chartData[i].label+': '+chartData[i].value+'"/>';
@@ -816,7 +794,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
       +'<section class="card panel"><div class="panel-head"><span class="label">Kalender</span><span class="r">Tag antippen für Details</span></div><div class="cal">'+cells+'</div></section>'
       +'<div class="sec"><span class="label">Pro Habit</span><span class="r">Quote der letzten 30 Tage</span></div>'
       +'<ul class="card group">'+(hl||'<li class="empty">Noch keine Habits.</li>')+'</ul>'
-      +'<div class="foot"><p>Das sind Beispieldaten. Änderungen bleiben nur in diesem Browser gespeichert.</p><button class="ghost" type="button" data-reset>Beispieldaten zurücksetzen</button></div>';
+      +'<div class="foot"><p>Alles bleibt nur in diesem Browser gespeichert.</p><button class="ghost" type="button" data-reset>Alles zurücksetzen</button></div>';
   }
 
   /* ---------- Render ---------- */
@@ -1138,7 +1116,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     if(!t||!k)return;
     var d=parse(k),n=total(k);
     while(t.firstChild)t.removeChild(t.firstChild);
-    var b=document.createElement('b');b.textContent=n?doneCount(k)+' von '+n+' · '+Math.round(frac(k)*100)+' %':'Nichts geplant';
+    var b=document.createElement('b');b.textContent=n?doneCount(k)+' von '+n+' · '+Math.round(frac(k)*100)+' %':(state.habits.length?'Nichts geplant':'Noch keine Habits');
     var s2=document.createElement('span');s2.className='ct-date';
     s2.textContent=(k===todayKey?'Heute, ':'')+fmt(d,{weekday:'long',day:'numeric',month:'long'});
     t.appendChild(b);t.appendChild(s2);
@@ -1233,7 +1211,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     var name=$('#hName').value.trim();
     if(!name)return;
     var target=Math.max(1,Math.min(20,parseInt($('#hTarget').value,10)||1));
-    var h={id:'h'+Date.now().toString(36),name:name,target:target};
+    var h={id:'h'+Date.now().toString(36),name:name,target:target,created:todayKey};
     if(!W.daily){
       if(W.mode==='interval'){h.every=W.every;h.start=todayKey;}
       else{
