@@ -135,6 +135,10 @@ h1{font:700 clamp(26px,7.6vw,38px)/1 var(--font-display);text-transform:uppercas
 .day.sel{background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px var(--hair)}
 .day.today .dn{color:var(--text)}
 .day:disabled{opacity:.28;cursor:default}
+.day .mini{opacity:.45;transition:opacity .2s}
+.day.sel .mini{opacity:1}
+.day .dn{opacity:.7;transition:opacity .2s}
+.day.sel .dn,.day.today .dn{opacity:1}
 .dn{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
 .mini{position:relative;width:38px;height:38px}
 .mini .num{position:absolute;inset:0;display:grid;place-items:center;font:600 14px var(--font-display);color:var(--text);font-variant-numeric:tabular-nums}
