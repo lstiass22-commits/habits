@@ -695,7 +695,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
   }
 
   function dayParts(k,edit){
-    var n=total(k),d=doneCount(k),t=targetFor(k),f=n?Math.min(1,d/t):0,pct=Math.round(f*100),tf=0;
+    var n=total(k),d=doneCount(k),t=targetFor(k),f=n?d/n:0,pct=Math.round(f*100),tf=0;
     var ck=colorFor(f,k),col=COLORS[ck];
     var from=(heroPrev&&heroPrev.k===k)?heroPrev.f:0;
     heroPrev={k:k,f:f};
@@ -703,17 +703,17 @@ body{overscroll-behavior:none;touch-action:manipulation}
     var val,sub;
     if(heroMode==='pct'){
       val='<span id="hval">'+(from===f?pct:Math.round(from*100))+'</span><small>%</small>';
-      sub=n===0?(state.habits.length?(k===todayKey?'Heute nichts geplant':'Nichts geplant'):'Noch keine Habits'):(d<t?(d+' von '+t+' bis zum Ziel'):'Ziel erreicht');
+      sub=n===0?(state.habits.length?(k===todayKey?'Heute nichts geplant':'Nichts geplant'):'Noch keine Habits'):(d<n?(d+' von '+n+' erledigt'):'Alles erledigt');
     }else{
-      val='<span id="hval">'+d+'</span><small>/'+t+'</small>';
-      sub=pct+' % des Tagesziels';
+      val='<span id="hval">'+d+'</span><small>/'+n+'</small>';
+      sub=pct+' % erledigt';
     }
 
     var pace='';
     if(k===todayKey){
       var now=new Date(),tfDay=(now.getHours()*60+now.getMinutes())/1440;
       pace='<div class="pace" style="--pc:'+col[0]+'"><span class="label">Tag</span>'
-        +'<div class="pace-bar" role="img" aria-label="Tagesverlauf: '+Math.round(tfDay*100)+' Prozent des Tages vorbei, '+pct+' Prozent des Tagesziels erfüllt"><i style="width:'+(f*100)+'%"></i><b style="left:'+(tfDay*100)+'%"></b></div>'
+        +'<div class="pace-bar" role="img" aria-label="Tagesverlauf: '+Math.round(tfDay*100)+' Prozent des Tages vorbei, '+pct+' Prozent erledigt"><i style="width:'+(f*100)+'%"></i><b style="left:'+(tfDay*100)+'%"></b></div>'
         +'<span class="pace-val">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span></div>';
     }
 
@@ -723,8 +723,8 @@ body{overscroll-behavior:none;touch-action:manipulation}
     return {
       n:n,from:from,to:f,
       hero:'<section class="hero"><div class="hero-wrap" style="--hc:'+col[0]+'">'+heroRing(from,ck,tf)
-        +'<button class="hero-mid" type="button" data-hero aria-label="Tagesziel erfüllt. Anzeige umschalten: Prozent oder Anzahl">'
-        +'<span class="label">Tagesziel erfüllt</span><span class="hero-pct">'+val+'</span><span class="hero-sub">'+sub+'</span></button>'
+        +'<button class="hero-mid" type="button" data-hero aria-label="Erledigt. Anzeige umschalten: Prozent oder Anzahl">'
+        +'<span class="label">Erledigt</span><span class="hero-pct">'+val+'</span><span class="hero-sub">'+sub+'</span></button>'
         +'</div></section>',
       coach:'<div class="card coach"><div class="coach-ic">'+AIM+'</div><div><p class="label">Coach</p><p class="coach-txt">'+coachText(k)+'</p></div></div>',
       pace:pace,
