@@ -570,9 +570,9 @@ body{overscroll-behavior:none;touch-action:manipulation}
     }
     return n;
   }
-  /* Tages-Serie: Tag zählt, wenn mind. 3 Habits erledigt sind (bei weniger geplanten: alle) */
+  /* Tages-Serie: ab 5 geplanten Habits zählen 3 erledigte, darunter reichen 50 % (aufgerundet) */
   var DGOAL=3;
-  function dayNeed(k){var n=total(k);return n?Math.min(DGOAL,n):0;}
+  function dayNeed(k){var n=total(k);return n?(n<5?Math.ceil(n/2):DGOAL):0;}
   function dayHit(k){var nd=dayNeed(k);return nd>0&&doneCount(k)>=nd;}
   function dayStreak(){
     var d=new Date(today),n=0,guard=0;
