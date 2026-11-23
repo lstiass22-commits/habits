@@ -279,6 +279,8 @@ h1{font:700 clamp(26px,7.6vw,38px)/1 var(--font-display);text-transform:uppercas
 .when:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .when .ci{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(255,255,255,.06);color:var(--muted);transition:background .2s,color .2s}
 .when[aria-checked="false"] .ci{background:var(--teal);color:#03150e}
+.when.opt .ci,.when.opt[aria-checked="false"] .ci{background:rgba(255,255,255,.06);color:var(--muted)}
+.when.opt[aria-checked="true"] .ci{background:rgba(255,255,255,.14);color:var(--text)}
 .when .wt{flex:1;font-size:15px;font-weight:600}
 .when .wt small{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:2px}
 .sw{flex:none;width:44px;height:26px;border-radius:13px;background:rgba(255,255,255,.14);position:relative;transition:background .2s}
@@ -457,6 +459,13 @@ body{overscroll-behavior:none;touch-action:manipulation}
         <p class="hint" id="hDaysHint" hidden></p>
       </div>
     </div>
+    <div>
+      <button type="button" class="when opt" id="hOpt" role="switch" aria-checked="false" aria-labelledby="hOptTxt">
+        <span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 3.2"/><path d="M12 8.5v7M8.5 12h7"/></svg></span>
+        <span class="wt" id="hOptTxt">Optional<small id="hOptSub">Zählt immer für dein Tagesziel</small></span>
+        <span class="sw" aria-hidden="true"></span>
+      </button>
+    </div>
     <div class="actions">
       <button type="button" data-close>Abbrechen</button>
       <button type="submit" class="primary">Hinzufügen</button>
@@ -552,7 +561,9 @@ body{overscroll-behavior:none;touch-action:manipulation}
   }
   function isCustom(h){return h.every>1||(h.days&&h.days.length<7);}
   function habitsOn(k){return state.habits.filter(function(h){return sched(h,k);});}
-  function total(k){return habitsOn(k).length;}
+  /* Optionale Habits: zählen nur, wenn sie erledigt sind (Zähler und Nenner), sonst gar nicht */
+  function reqCount(k){return habitsOn(k).filter(function(h){return !h.optional;}).length;}
+  function total(k){return habitsOn(k).filter(function(h){return !h.optional||isDone(h,k);}).length;}
   function isRest(k){return total(k)===0;}
   function daysLabel(h){
     if(h.every>1)return 'Alle '+h.every+' Tage';
@@ -576,7 +587,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
   }
   /* Tages-Serie: ab 5 geplanten Habits zählen 3 erledigte, darunter reichen 50 % (aufgerundet) */
   var DGOAL=3;
-  function dayNeed(k){var n=total(k);return n?(n<5?Math.ceil(n/2):DGOAL):0;}
+  function dayNeed(k){var n=reqCount(k);return n?(n<5?Math.ceil(n/2):DGOAL):0;}
   function dayHit(k){var nd=dayNeed(k);return nd>0&&doneCount(k)>=nd;}
   function dayStreak(){
     var d=new Date(today),n=0,guard=0;
@@ -668,12 +679,13 @@ body{overscroll-behavior:none;touch-action:manipulation}
   function coachText(k){
     if(!state.habits.length)return 'Leg dein erstes Habit an. Dann berechne ich dir ein Tagesziel.';
     var n=total(k);
+    if(!n&&habitsOn(k).length)return k===todayKey?'Heute gibt es nur optionale Habits. Kein Druck.':'An diesem Tag gab es nur optionale Habits.';
     if(!n)return k===todayKey?'Heute ist nichts geplant. Ruhetag.':'An diesem Tag war nichts geplant.';
     var d=doneCount(k),t=targetFor(k);
     if(k===todayKey){
       if(d>=n)return 'Alles erledigt. Mehr geht heute nicht.';
       if(d>=t)return 'Tagesziel erreicht. Alles darüber ist Bonus.';
-      var open=habitsOn(k).filter(function(h){return !isDone(h,k);}).sort(function(a,b){return streak(b)-streak(a);})[0];
+      var open=habitsOn(k).filter(function(h){return !h.optional&&!isDone(h,k);}).sort(function(a,b){return streak(b)-streak(a);})[0];
       var s=streak(open);
       return 'Noch <b>'+(t-d)+'</b> bis zum Ziel. '+(s>0?'<b>'+esc(open.name)+'</b> sichert deine Serie von '+s+' Tagen.':'Nächster Kandidat: <b>'+esc(open.name)+'</b>.');
     }
@@ -684,7 +696,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
   function row(h,k,edit){
     var c=count(k,h),done=c>=h.target,f=Math.min(c/h.target,1),st=streak(h,k);
     var tm=state.times[k]&&state.times[k][h.id];
-    var meta=(h.target>1?(c+' von '+h.target):(done?'Erledigt':'Offen'))+(done&&tm?' · '+tm:'')+(isCustom(h)?' · '+daysLabel(h):'');
+    var meta=(h.target>1?(c+' von '+h.target):(done?'Erledigt':'Offen'))+(done&&tm?' · '+tm:'')+(isCustom(h)?' · '+daysLabel(h):'')+(h.optional?' · Optional':'');
     var inner=done?CHECK:(h.target>1?'<span>'+c+'</span>':'');
     var ringHtml=done?'':ring(f,40,3.5,'blue');
     var sc=st>=7?'hi':(st>=3?'':(st>0?'lo':'zero'));
@@ -707,7 +719,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     var val,sub;
     if(heroMode==='pct'){
       val='<span id="hval">'+(from===f?pct:Math.round(from*100))+'</span><small>%</small>';
-      sub=n===0?(state.habits.length?(k===todayKey?'Heute nichts geplant':'Nichts geplant'):'Noch keine Habits'):(d<n?(d+' von '+n+' erledigt'):'Alles erledigt');
+      sub=n===0?(habitsOn(k).length?'Nur optionale Habits':(state.habits.length?(k===todayKey?'Heute nichts geplant':'Nichts geplant'):'Noch keine Habits')):(d<n?(d+' von '+n+' erledigt'):'Alles erledigt');
     }else{
       val='<span id="hval">'+d+'</span><small>/'+n+'</small>';
       sub=pct+' % erledigt';
@@ -725,7 +737,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     var list=shown.length?shown.map(function(h){return row(h,k,edit);}).join(''):(state.habits.length?'<li class="empty">'+(k===todayKey?'Heute ist nichts geplant.':'An diesem Tag war nichts geplant.')+'</li>':'<li class="empty">Noch keine Habits. Leg unten dein erstes an.</li>');
     popId=null;
     return {
-      n:n,from:from,to:f,
+      n:habitsOn(k).length,from:from,to:f,
       hero:'<section class="hero"><div class="hero-wrap" style="--hc:'+col[0]+'">'+heroRing(from,ck,tf)
         +'<button class="hero-mid" type="button" data-hero aria-label="Erledigt. Anzeige umschalten: Prozent oder Anzahl">'
         +'<span class="label">Erledigt</span><span class="hero-pct">'+val+'</span><span class="hero-sub">'+sub+'</span></button>'
@@ -892,7 +904,11 @@ body{overscroll-behavior:none;touch-action:manipulation}
     if(d>today||d<oldest)return;
     selected=key(d);slide=n>0?'l':'r';render();
   }
-  var W={daily:true,mode:'weekdays',days:[],every:2};
+  var W={daily:true,mode:'weekdays',days:[],every:2,opt:false};
+  function paintOpt(){
+    $('#hOpt').setAttribute('aria-checked',String(W.opt));
+    $('#hOptSub').textContent=W.opt?'Zählt nur, wenn du es machst':'Zählt immer für dein Tagesziel';
+  }
   function paintWhen(){
     var sw=$('#hWhen'),hint=$('#hDaysHint'),iv=W.mode==='interval';
     sw.setAttribute('aria-checked',String(W.daily));
@@ -920,7 +936,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     });
   }
   function openSheet(){
-    setupDays();W.daily=true;W.mode='weekdays';W.days=[];W.every=2;paintWhen();
+    setupDays();W.daily=true;W.mode='weekdays';W.days=[];W.every=2;W.opt=false;paintWhen();paintOpt();
     $('#hName').value='';$('#hTarget').value='1';
     $('#sheet').hidden=false;$('#hName').focus();
   }
@@ -1199,7 +1215,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
 
   /* ---------- Eingaben ---------- */
   document.addEventListener('click',function(e){
-    var t=e.target.closest('[data-tab],[data-day],[data-toggle],[data-del],[data-close],[data-dclose],[data-step],[data-reset],[data-hero],[data-today],[data-cal],#dbg,#dhandle,#editBtn,#addBtn,#hWhen,#hDays button,[data-mode],[data-ev],#brandBtn,[data-drclose],#drbg,[data-sec]');
+    var t=e.target.closest('[data-tab],[data-day],[data-toggle],[data-del],[data-close],[data-dclose],[data-step],[data-reset],[data-hero],[data-today],[data-cal],#dbg,#dhandle,#editBtn,#addBtn,#hWhen,#hOpt,#hDays button,[data-mode],[data-ev],#brandBtn,[data-drclose],#drbg,[data-sec]');
     if(!t)return;
     if(t.dataset.tab){tab=t.dataset.tab;editing=false;heroPrev=null;render();window.scrollTo(0,0);}
     else if(t.dataset.day){selected=t.dataset.day;render();refocus('[data-day="'+selected+'"]');}
@@ -1230,6 +1246,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     }
     else if(t.hasAttribute('data-drclose')||t.id==='drbg'){closeDrawer();}
     else if(t.id==='addBtn'){openSheet();}
+    else if(t.id==='hOpt'){W.opt=!W.opt;paintOpt();}
     else if(t.id==='hWhen'){
       W.daily=!W.daily;
       if(!W.daily&&!W.days.length)W.days=[wdOf(todayKey)];   /* sinnvoller Start: heutiger Wochentag */
@@ -1249,6 +1266,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     if(!name)return;
     var target=Math.max(1,Math.min(20,parseInt($('#hTarget').value,10)||1));
     var h={id:'h'+Date.now().toString(36),name:name,target:target,created:todayKey};
+    if(W.opt)h.optional=true;
     if(!W.daily){
       if(W.mode==='interval'){h.every=W.every;h.start=todayKey;}
       else{
