@@ -279,10 +279,13 @@ h1{font:700 clamp(26px,7.6vw,38px)/1 var(--font-display);text-transform:uppercas
 .when:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .when .ci{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(255,255,255,.06);color:var(--muted);transition:background .2s,color .2s}
 .when[aria-checked="false"] .ci{background:var(--teal);color:#03150e}
-.when.opt .ci,.when.opt[aria-checked="false"] .ci{background:rgba(255,255,255,.06);color:var(--muted)}
-.when.opt[aria-checked="true"] .ci{background:rgba(255,255,255,.14);color:var(--text)}
 .when .wt{flex:1;font-size:15px;font-weight:600}
 .when .wt small{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:2px}
+.optchk{display:flex;align-items:center;gap:11px;background:none;border:0;padding:4px 2px;margin-top:-4px;text-align:left;color:var(--text);font-size:14.5px;font-weight:600}
+.optchk small{margin-left:8px;font-size:12px;font-weight:500;color:var(--muted)}
+.optchk .box{flex:none;width:22px;height:22px;border-radius:6px;border:1.5px solid rgba(255,255,255,.34);display:grid;place-items:center;color:transparent;transition:background .15s,border-color .15s,color .15s}
+.optchk[aria-checked="true"] .box{background:var(--teal);border-color:var(--teal);color:#03150e}
+.optchk:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:8px}
 .sw{flex:none;width:44px;height:26px;border-radius:13px;background:rgba(255,255,255,.14);position:relative;transition:background .2s}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transition:transform .22s cubic-bezier(.3,1.4,.5,1)}
 .when[aria-checked="true"] .sw{background:var(--teal)}
@@ -459,13 +462,10 @@ body{overscroll-behavior:none;touch-action:manipulation}
         <p class="hint" id="hDaysHint" hidden></p>
       </div>
     </div>
-    <div>
-      <button type="button" class="when opt" id="hOpt" role="switch" aria-checked="false" aria-labelledby="hOptTxt">
-        <span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 3.2"/><path d="M12 8.5v7M8.5 12h7"/></svg></span>
-        <span class="wt" id="hOptTxt">Optional<small id="hOptSub">Zählt immer für dein Tagesziel</small></span>
-        <span class="sw" aria-hidden="true"></span>
-      </button>
-    </div>
+    <button type="button" class="optchk" id="hOpt" role="checkbox" aria-checked="false">
+      <span class="box" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      <span>Optional<small>zählt nur, wenn du es machst</small></span>
+    </button>
     <div class="actions">
       <button type="button" data-close>Abbrechen</button>
       <button type="submit" class="primary">Hinzufügen</button>
@@ -905,10 +905,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     selected=key(d);slide=n>0?'l':'r';render();
   }
   var W={daily:true,mode:'weekdays',days:[],every:2,opt:false};
-  function paintOpt(){
-    $('#hOpt').setAttribute('aria-checked',String(W.opt));
-    $('#hOptSub').textContent=W.opt?'Zählt nur, wenn du es machst':'Zählt immer für dein Tagesziel';
-  }
+  function paintOpt(){$('#hOpt').setAttribute('aria-checked',String(W.opt));}
   function paintWhen(){
     var sw=$('#hWhen'),hint=$('#hDaysHint'),iv=W.mode==='interval';
     sw.setAttribute('aria-checked',String(W.daily));
