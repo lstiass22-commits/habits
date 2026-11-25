@@ -559,6 +559,8 @@ body{overscroll-behavior:none;touch-action:manipulation}
   Health.init({
     getData:function(){return state.health;},
     setData:function(h){if(h)state.health=h;else delete state.health;save();},
+    getSample:function(){return state.hxSample!==false;},
+    setSample:function(v){state.hxSample=!!v;save();},
     rerender:function(top){render();if(top)window.scrollTo(0,0);}
   });
   function setTabs(mode){

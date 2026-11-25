@@ -114,3 +114,11 @@
 .hx-chart{display:grid;gap:6px}.hx-tchart{width:100%;height:160px}.hx-pt{cursor:pointer}
 @keyframes hxup{from{transform:translate(-50%,100%)}}@keyframes hxfade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){.hx-arc,.hx-scrim,.hx-sheet{animation:none}}
+
+.hx-tog{display:flex!important;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:10px 14px;border-radius:16px;background:rgba(0,0,0,.28)!important;border:1px solid var(--hair)!important;cursor:pointer}
+.hx-tog span:first-child{font-size:15px;font-weight:600}
+.hx-tog small{display:block;font-size:12px;font-weight:500;color:var(--hx-t3);margin-top:2px}
+.hx-sw{flex:none;width:44px;height:26px;border-radius:13px;background:rgba(255,255,255,.14);position:relative;transition:background .2s}
+.hx-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transition:transform .22s cubic-bezier(.3,1.4,.5,1)}
+.hx-tog[aria-checked="true"] .hx-sw{background:var(--teal)}
+.hx-tog[aria-checked="true"] .hx-sw::after{transform:translateX(18px)}

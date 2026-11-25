@@ -5,7 +5,7 @@
   var C = { recovery: "#3DDC97", recoveryTrack: "#24302B", strain: "#4DA3FF", strainTrack: "#1E2A3A", sleep: "#A78BFA", sleepTrack: "#2A2540",
     warn: "#FFB454", low: "#7DBBFF", bad: "#FF6B6B", heart: "#FF6B7A", lungs: "#4DD0E1", deep: "#5B3FD1", light: "#6C8CFF", rem: "#9FD3FF", awake: "#FF8FA3" };
   var DAY = 86400000;
-  var host = null, ui = { tab: "today", stack: [], sheet: null, msg: "", sample: false };
+  var host = null, ui = { tab: "today", stack: [], sheet: null, msg: "" };
 
   /* ---------- Werte-Definitionen ---------- */
   var M = {
@@ -164,13 +164,18 @@
     });
     keys.forEach(function (k) {
       var x = h.days[k]; if (typeof x.sleep !== "number") return;
-      nights.push({ end: dparse(k).getTime(), segments: [], asleep: x.sleep, deep: x.deep || 0, rem: x.rem || 0, awake: x.awake || 0, date: dparse(k) });
+      nights.push({ end: dparse(k).getTime(), segments: [], asleep: x.sleep, deep: x.deep || 0, rem: x.rem || 0, awake: x.awake || 0, date: dparse(k), stagesKnown: typeof x.deep === "number" && typeof x.rem === "number", awakeKnown: typeof x.awake === "number" });
     });
     var last = h.days[keys[keys.length - 1]];
     var strain = null;
     if (typeof last.kcal === "number") strain = 21 * (1 - Math.exp(-(last.kcal + 5 * (last.workout || 0)) / 1100));
     return { sample: false, today: today, data: data, nights: nights, hr: null, stress: null, strain: strain, strainEst: true, zones: null, workoutsToday: null,
       count: keys.length, lastKey: keys[keys.length - 1], maxHR: 0, age: 0, bodyAge: null, nowLabel: "" };
+  }
+
+  function buildEmpty() {
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    return { sample: false, today: today, data: {}, nights: [], hr: null, stress: null, strain: null, zones: null, workoutsToday: null, count: 0, bodyAge: null, nowLabel: "" };
   }
 
   /* ---------- Zustand je Wert, Scores, Verlauf ---------- */
@@ -201,14 +206,12 @@
   }
   function sleepScoreOf(n) {
     if (!n || n.asleep <= 60) return null;
-    var dur = Math.min(n.asleep / 480, 1) * 50, hasSt = n.deep + n.rem > 0;
-    var rest = hasSt ? Math.min(((n.deep + n.rem) / n.asleep) / 0.40, 1) * 30 : 22;
-    var eff = n.awake > 0 ? n.asleep / (n.asleep + n.awake) : 0.92;
+    if (n.stagesKnown === false || n.awakeKnown === false) return null;   /* nichts raten: ohne Phasen und Wachzeit kein Score */
+    var dur = Math.min(n.asleep / 480, 1) * 50, rest = Math.min(((n.deep + n.rem) / n.asleep) / 0.40, 1) * 30, eff = n.asleep / (n.asleep + n.awake);
     return Math.round(dur + rest + Math.min(eff / 0.90, 1) * 20);
   }
   function prepare() {
-    var real = host.getData() && !ui.sample ? buildReal(host.getData()) : null;
-    var DS = real || buildSample();
+    var useSample = host.getSample(), DS = useSample ? buildSample() : (buildReal(host.getData()) || buildEmpty());
     var ST = {}; Object.keys(M).forEach(function (id) { var s = makeState(DS, id); if (s) ST[id] = s; });
     var lastDate = null;
     Object.keys(ST).forEach(function (id) { var d = ST[id].latest.date.getTime(); if (lastDate === null || d > lastDate) lastDate = d; });
@@ -224,7 +227,7 @@
       history.push({ d: d, date: dt, recovery: r ? r.score : null, sleep: nn ? nn.asleep : null, steps: st ? st.value : null,
         strain: d === 0 && DS.strain !== null ? DS.strain : (kc ? 21 * (1 - Math.exp(-kc.value / 1100)) : null) });
     }
-    return { DS: DS, ST: ST, S: S, rec: rec, night: night, history: history, today: today, real: !!real };
+    return { DS: DS, ST: ST, S: S, rec: rec, night: night, history: history, today: today, real: !useSample };
   }
   var concerns = function (P) { return Object.keys(P.ST).map(function (k) { return P.ST[k]; }).filter(function (s) { return s.concern; }); };
   var panelsOf = function (P) { return PANELS.map(function (p) { return { id: p.id, title: p.title, short: p.short, tint: p.tint, metrics: p.metrics.filter(function (id) { return P.ST[id]; }) }; }).filter(function (p) { return p.metrics.length; }); };
@@ -286,15 +289,14 @@
   }
   function dataCard(P) {
     var h = host.getData(), have = h && Object.keys(h.days || {}).length;
-    var badge = P.real ? '<span class="hx-badge on">ECHTE DATEN · ' + P.DS.count + (P.DS.count === 1 ? " TAG" : " TAGE") + "</span>" : '<span class="hx-badge">BEISPIELDATEN</span>';
-    var txt = P.real ? "Zuletzt eingelesen für " + dayName(dparse(P.DS.lastKey), { weekday: "short", day: "numeric", month: "short" }) + ". " + (P.DS.count < 3 ? "Nach 3 Tagen kennt die App dein Normal und bewertet deine Werte." : "")
-      : have ? "Du hast eigene Daten gespeichert, siehst gerade aber die Beispieldaten." : "Noch nicht mit deiner Fitbit verbunden. Sie synct in Apple Health, ein Kurzbefehl liest die Werte ein.";
+    var badge = P.real ? '<span class="hx-badge on">ECHTE DATEN · ' + P.DS.count + (P.DS.count === 1 ? " TAG" : " TAGE") + "</span>" : '<span class="hx-badge">BEISPIELZAHLEN</span>';
+    var txt = P.real ? (P.DS.count ? "Zuletzt eingelesen für " + dayName(dparse(P.DS.lastKey), { weekday: "short", day: "numeric", month: "short" }) + ". " + (P.DS.count < 3 ? "Nach 3 Tagen kennt die App dein Normal und bewertet deine Werte." : "") : "Noch keine Daten eingelesen. Hier steht nur, was von deiner Fitbit kommt oder daraus berechnet wird.")
+      : "Das sind erfundene Beispielwerte. Schalte oben „Beispielzahlen“ aus, um nur deine echten Daten zu sehen. Deine Fitbit synct in Apple Health, ein Kurzbefehl liest die Werte ein.";
     return '<div class="hx-card"><div class="hx-row"><b>Daten</b>' + badge + '</div><p class="hx-txt">' + txt + '</p>' +
       (ui.msg ? '<p class="hx-note" style="color:var(--amber)">' + esc(ui.msg) + "</p>" : "") +
       '<button class="hx-btn" data-hx="import">Aus Zwischenablage einlesen</button>' +
       '<button class="hx-btn ghost" data-hx="sheet:x:howto">So richtest du den Kurzbefehl ein</button>' +
-      (have ? '<button class="hx-btn ghost" data-hx="' + (P.real ? "sample" : "real") + '">' + (P.real ? "Beispieldaten ansehen" : "Meine Daten ansehen") + "</button>" +
-        '<button class="hx-note" style="text-align:center;padding:6px" data-hx="wipe">Eigene Daten löschen</button>' : "") + "</div>";
+      (have ? '<button class="hx-note" style="text-align:center;padding:6px" data-hx="wipe">Eigene Daten löschen</button>' : "") + "</div>";
   }
   function todayView(P) {
     var S = P.S, DS = P.DS, watch = concerns(P).length, pans = panelsOf(P);
@@ -304,8 +306,8 @@
       '<button class="hx-ringcard" data-hx="push:score:recovery">' + ring((S.recovery || 0) / 100, S.recovery === null ? C.recoveryTrack : recColor(S.recovery), C.recoveryTrack, 88, 9, S.recovery === null ? "–" : S.recovery + "%", 0.1) + '<span class="hx-rl" style="color:' + C.recovery + '">ERHOLUNG</span></button>' +
       '<button class="hx-ringcard" data-hx="push:score:strain">' + ring((S.strain || 0) / 21, C.strain, C.strainTrack, 88, 9, S.strain === null ? "–" : S.strain.toFixed(1).replace(".", ","), 0.2) + '<span class="hx-rl" style="color:' + C.strain + '">BELASTUNG</span></button>' +
       '<button class="hx-ringcard" data-hx="push:score:sleep">' + ring((S.sleep || 0) / 100, S.sleep === null ? C.sleepTrack : C.sleep, C.sleepTrack, 88, 9, S.sleep === null ? "–" : S.sleep, 0.3) + '<span class="hx-rl" style="color:' + C.sleep + '">SCHLAF</span></button></div>';
-    var tg = S.recovery === null ? [8, 12] : S.recovery >= 67 ? [14, 17] : S.recovery >= 34 ? [10, 14] : [5, 10];
-    if (S.strain !== null) out += '<div class="hx-card"><div class="hx-row"><b>Belastungsziel</b><span class="m dim">' + tg[0] + " – " + tg[1] + '</span></div><div class="hx-tbar"><span class="hx-tzone" style="left:' + tg[0] / 21 * 100 + "%;width:" + (tg[1] - tg[0]) / 21 * 100 + '%"></span><span class="hx-tnow" style="width:' + S.strain / 21 * 100 + '%"></span></div>' +
+    var tg = S.recovery === null ? null : S.recovery >= 67 ? [14, 17] : S.recovery >= 34 ? [10, 14] : [5, 10];
+    if (S.strain !== null && tg) out += '<div class="hx-card"><div class="hx-row"><b>Belastungsziel</b><span class="m dim">' + tg[0] + " – " + tg[1] + '</span></div><div class="hx-tbar"><span class="hx-tzone" style="left:' + tg[0] / 21 * 100 + "%;width:" + (tg[1] - tg[0]) / 21 * 100 + '%"></span><span class="hx-tnow" style="width:' + S.strain / 21 * 100 + '%"></span></div>' +
       '<p class="hx-txt">' + (S.strain < tg[0] ? S.strain.toFixed(1).replace(".", ",") + " bisher. " + (DS.sample ? "Eine moderate Einheit von 30–45 Min. bringt dich in die Zone." : "Mehr Bewegung bringt dich in die Zone.") : "Du bist im Zielbereich oder darüber.") + (DS.strainEst ? " Geschätzt aus deiner Aktivität." : "") + "</p></div>";
     if (DS.stress) {
       var last = DS.stress.filter(function (s) { return s.level !== null; }).slice(-1)[0].level;
@@ -331,7 +333,7 @@
         '</div><p class="hx-note">Jedes Feld ist eine Nacht: grün = dein üblicher Bereich, gelb = darüber, blau = darunter, grau = keine Daten.</p></div>';
     }
     if (P.night) {
-      out += '<button class="hx-card hx-link" data-hx="push:score:sleep"><div class="hx-row"><b>Letzte Nacht</b><span class="m dim">' + (P.night.start ? hm(P.night.start) + " – " + hm(P.night.end) : dayName(P.night.date, { weekday: "short", day: "numeric", month: "short" })) + '</span></div><div class="hx-big"><span class="m">' + fmt("sleepTotal", P.night.asleep) + "</span> <small>geschlafen</small></div>" + stageBar(P.night) + "</button>";
+      out += '<button class="hx-card hx-link" data-hx="push:score:sleep"><div class="hx-row"><b>Letzte Nacht</b><span class="m dim">' + (P.night.start ? hm(P.night.start) + " – " + hm(P.night.end) : dayName(P.night.date, { weekday: "short", day: "numeric", month: "short" })) + '</span></div><div class="hx-big"><span class="m">' + fmt("sleepTotal", P.night.asleep) + "</span> <small>geschlafen</small></div>" + (P.night.stagesKnown === false ? "" : stageBar(P.night)) + "</button>";
       var debt = DS.nights.slice(-7).reduce(function (a, n) { return a + Math.max(0, 480 - n.asleep); }, 0);
       var withTimes = DS.nights.filter(function (n) { return n.start; });
       var cons = ""; if (withTimes.length >= 3) { var mins = withTimes.slice(-14).map(function (n) { var d = new Date(n.start), m = d.getHours() * 60 + d.getMinutes(); return m < 12 * 60 ? m + 1440 : m; }), mu = mean(mins), sd = Math.sqrt(mean(mins.map(function (x) { return (x - mu) * (x - mu); }))); cons = [Math.max(0, Math.round(100 - sd * 0.8)), Math.round(sd)]; }
@@ -367,7 +369,8 @@
         DS.zones.map(function (z, i) { return '<div class="hx-zone"><span class="m">Z' + (i + 1) + " · " + (50 + i * 10) + '%+</span><span class="hx-zb"><i style="width:' + Math.max(z / mz * 100, 2) + "%;background:" + C.strain + ";opacity:" + (0.35 + i * 0.15) + '"></i></span><span class="m">' + z + " Min.</span></div>"; }).join("") + "</div>" +
         '<div class="hx-card"><b>Workouts heute</b>' + DS.workoutsToday.map(function (w) { return '<div class="hx-row"><span>' + w.name + '</span><span class="m dim">' + hm(w.start) + " · " + w.minutes + " Min.</span></div>"; }).join("") + "</div>";
     }
-    if (S.sleep === null || !P.night) return headerCard("–", 0, C.sleepTrack, C.sleepTrack, "Noch keine Schlafdaten eingelesen.");
+    if (!P.night) return headerCard("–", 0, C.sleepTrack, C.sleepTrack, "Noch keine Schlafdaten eingelesen.");
+    if (S.sleep === null) return headerCard("–", 0, C.sleepTrack, C.sleepTrack, fmt("sleepTotal", P.night.asleep) + " geschlafen. Für den Schlafscore brauche ich auch Tief-, REM-Schlaf und Wachzeit.") + '<div class="hx-card hx-rows">' + ["sleepTotal", "deepSleep", "remSleep", "awake"].filter(function (id) { return P.ST[id]; }).map(function (id, i) { return metricRow(P, id, i === 0); }).join("") + "</div>";
     var n = P.night, inBed = n.asleep + n.awake;
     return headerCard(S.sleep, S.sleep / 100, C.sleep, C.sleepTrack, fmt("sleepTotal", n.asleep) + " geschlafen" + (n.start ? ", " + hm(n.start) + " – " + hm(n.end) : "") + (n.awake ? ". " + Math.round(n.asleep / inBed * 100) + " % deiner Zeit im Bett war Schlaf." : ".")) +
       (n.segments.length ? '<div class="hx-card"><b>Deine Nacht</b>' + hypnogram(n) + legendSleep + "</div>" : "") +
@@ -490,13 +493,14 @@
     init: function (h) { host = h; },
     /* liefert den Inhalt für die Seite; die App setzt Titel und Unterzeile */
     view: function () {
-      var P = prepare(), top = ui.stack[ui.stack.length - 1], html, title = "Sport / Health", eyebrow = P.real ? "Echte Daten" : "Beispieldaten";
+      var P = prepare(), top = ui.stack[ui.stack.length - 1], html, title = "Sport / Health", eyebrow = P.real ? "Echte Daten" : "Beispielzahlen";
       if (top) {
         var kn = top.split(":"), body = kn[0] === "score" ? scoreDetail(P, kn[1]) : panelDetail(P, kn[1]);
         html = '<button class="hx-back" data-hx="back">' + chev + " Zurück</button>" + body;
       } else html = { today: todayView, panels: panelsView, trends: trendsView, guide: guideView }[ui.tab](P);
       paintSheet(P);
-      return { title: title, eyebrow: eyebrow, html: '<div class="hx">' + html + "</div>", tab: ui.tab };
+      var tog = '<button class="hx-tog" type="button" role="switch" aria-checked="' + !P.real + '" data-hx="toggle"><span>Beispielzahlen<small>' + (P.real ? "Aus: nur echte Daten" : "An: erfundene Testwerte") + '</small></span><span class="hx-sw" aria-hidden="true"></span></button>';
+      return { title: title, eyebrow: eyebrow, html: '<div class="hx">' + tog + html + "</div>", tab: ui.tab };
     },
     tabsHtml: function () {
       return TABS.map(function (t) { return '<button class="tab" type="button" data-hx="tab:' + t[0] + '"' + (ui.tab === t[0] && !ui.stack.length ? ' aria-current="page"' : "") + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + t[2] + "</svg>" + t[1] + "</button>"; }).join("");
@@ -516,13 +520,12 @@
         if (tip) tip.innerHTML = "<b>" + dayName(p.date) + '</b> · <span class="m">' + fmt(st.id, p.value) + " " + M[st.id].unit + "</span>";
         layer().querySelectorAll(".hx-pt").forEach(function (c) { c.removeAttribute("stroke"); }); el.setAttribute("stroke", "#fff"); el.setAttribute("stroke-width", "2");
       }
-      else if (a === "sample") { ui.sample = true; host.rerender(false); }
-      else if (a === "real") { ui.sample = false; host.rerender(false); }
-      else if (a === "wipe") { if (window.confirm("Alle eingelesenen Gesundheitsdaten löschen?")) { host.setData(null); ui.sample = false; ui.msg = "Eigene Daten gelöscht."; host.rerender(false); } }
+      else if (a === "toggle") { host.setSample(!host.getSample()); ui.stack = []; ui.sheet = null; host.rerender(false); }
+      else if (a === "wipe") { if (window.confirm("Alle eingelesenen Gesundheitsdaten löschen?")) { host.setData(null); ui.msg = "Eigene Daten gelöscht."; host.rerender(false); } }
       else if (a === "import") {
         if (!navigator.clipboard || !navigator.clipboard.readText) { ui.msg = "Dein Browser erlaubt kein Einlesen aus der Zwischenablage."; host.rerender(false); return; }
         navigator.clipboard.readText().then(function (t) {
-          var r = api.importText(t); ui.msg = r.msg; if (r.ok) ui.sample = false; host.rerender(false);
+          var r = api.importText(t); ui.msg = r.msg; if (r.ok) host.setSample(false); host.rerender(false);
         }).catch(function () { ui.msg = "Zugriff auf die Zwischenablage nicht erlaubt. Tippe beim nächsten Mal auf „Einsetzen“."; host.rerender(false); });
       }
     },
