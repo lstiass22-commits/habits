@@ -15,7 +15,8 @@
 <title>Habits</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="health.css">
 <style>
 /* Layout: eine Spalte wie auf dem iPhone. Tagesring mit Skala oben, Coach-Karte, Wochenleiste, gruppierte Liste, schwebende Tab-Leiste.
    Farben tragen Bedeutung: Blau = läuft noch, Grün = geschafft, Gelb/Rot = Tage mit wenig Ertrag. */
@@ -521,6 +522,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
 <div class="caltip" id="caltip" hidden></div>
 <div class="ptr" id="ptr" aria-hidden="true"><svg viewBox="0 0 26 26"><circle class="t" cx="13" cy="13" r="10"/><g class="g" id="ptrg"><circle class="a" id="ptra" cx="13" cy="13" r="10" transform="rotate(-90 13 13)"/></g><path class="pl" d="M13 8.2v9.6M8.2 13h9.6"/></svg><span class="pt">Neues Habit</span></div>
 
+<script src="health.js"></script>
 <script>
 (function(){
   var DAYS=['Mo','Di','Mi','Do','Fr','Sa','So'];
@@ -552,6 +554,19 @@ body{overscroll-behavior:none;touch-action:manipulation}
   function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
 
   var state=load();
+  /* Sport / Health (health.js) */
+  var habitTabsHTML=null;
+  Health.init({
+    getData:function(){return state.health;},
+    setData:function(h){if(h)state.health=h;else delete state.health;save();},
+    rerender:function(top){render();if(top)window.scrollTo(0,0);}
+  });
+  function setTabs(mode){
+    var tin=document.querySelector('.tabs-in');if(!tin)return;
+    if(habitTabsHTML===null)habitTabsHTML=tin.innerHTML;
+    if(mode==='health'){tin.innerHTML=Health.tabsHtml();tin.style.gridTemplateColumns='repeat(4,1fr)';tin.dataset.mode='health';}
+    else if(tin.dataset.mode==='health'){tin.innerHTML=habitTabsHTML;tin.style.gridTemplateColumns='';delete tin.dataset.mode;}
+  }
   var selected=todayKey;
   var tab='today';
   var section='habits';
@@ -901,7 +916,19 @@ body{overscroll-behavior:none;touch-action:manipulation}
     pending=null;
     renderDStreak();
     document.querySelectorAll('.dr-item').forEach(function(b){if(b.dataset.sec===section)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
-    $('.tabs').style.display=section==='habits'?'':'none';
+    $('.tabs').style.display=(section==='habits'||section==='health')?'':'none';
+    if(section!=='health')Health.leave();
+    setTabs(section==='health'?'health':'habits');
+    if(section==='health'){
+      var hv=Health.view();
+      $('#title').textContent=hv.title;
+      $('#eyebrow').textContent=hv.eyebrow;
+      view.innerHTML=hv.html;
+      view.classList.remove('slide-l','slide-r');slide=null;
+      setTabs('health');
+      $('#editBtn').hidden=true;$('#todayBtn').hidden=true;
+      return;
+    }
     if(section==='todos'){
       var no=state.todos.filter(function(t){return !t.done;}).length;
       $('#title').textContent='To-Dos';
@@ -1320,6 +1347,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
     }
   });
   document.addEventListener('input',function(e){if(e.target&&e.target.id==='tdIn')tdDraft=e.target.value;});
+  document.addEventListener('click',function(e){var hx=e.target.closest&&e.target.closest('[data-hx]');if(hx)Health.act(hx);});
   document.addEventListener('visibilitychange',function(){if(!document.hidden)pullInbox();});
   pullInbox();
   document.addEventListener('submit',function(e){
@@ -1545,7 +1573,7 @@ body{overscroll-behavior:none;touch-action:manipulation}
   }
   document.addEventListener('touchstart',function(e){
     P.on=false;
-    if(P.busy||D.open||!$('#sheet').hidden||!$('#drawer').hidden||e.touches.length!==1)return;
+    if(P.busy||D.open||Health.open()||!$('#sheet').hidden||!$('#drawer').hidden||e.touches.length!==1)return;
     if((window.scrollY||document.documentElement.scrollTop)>0)return;
     P.on=true;P.act=false;P.y0=e.touches[0].clientY;P.x0=e.touches[0].clientX;
   },{passive:true});

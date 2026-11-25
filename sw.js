@@ -1,6 +1,6 @@
 /* Offline-Cache: erst Netz (immer aktuell), ohne Netz der Cache */
-var V = 'habits-v2';
-var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
+var V = 'habits-v3';
+var SHELL = ['./', 'index.html', 'health.js', 'health.css', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(V).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
 });
