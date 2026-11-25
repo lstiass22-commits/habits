@@ -541,11 +541,11 @@ body{overscroll-behavior:none;touch-action:manipulation}
   var todayKey=key(today);
   var oldest=addDays(today,-34);
 
-  function seed(){return {habits:[],log:{},times:{},todos:[]};}   /* Start ohne Beispieldaten */
+  function seed(){return {habits:[],log:{},times:{},todos:[],imported:[]};}   /* Start ohne Beispieldaten */
   function load(){
     try{
       var raw=localStorage.getItem(KEY);
-      if(raw){var s=JSON.parse(raw);if(s&&Array.isArray(s.habits)&&s.log){s.times=s.times||{};if(!Array.isArray(s.todos))s.todos=[];return s;}}
+      if(raw){var s=JSON.parse(raw);if(s&&Array.isArray(s.habits)&&s.log){s.times=s.times||{};if(!Array.isArray(s.todos))s.todos=[];if(!Array.isArray(s.imported))s.imported=[];return s;}}
     }catch(e){}
     return seed();
   }
@@ -864,6 +864,21 @@ body{overscroll-behavior:none;touch-action:manipulation}
   }
 
   /* ---------- To-Dos ---------- */
+  /* Eingang: inbox.json im Repo (von Claude befüllt). Neue Einträge landen beim Öffnen automatisch in den To-Dos. */
+  function pullInbox(){
+    if(!window.fetch||!/^https?:/.test(location.protocol))return;
+    fetch('inbox.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j||!Array.isArray(j.items))return;
+      var add=j.items.filter(function(it){return it&&it.id&&it.text&&state.imported.indexOf(it.id)<0;});
+      if(!add.length)return;
+      add.slice().reverse().forEach(function(it){
+        state.imported.push(it.id);
+        state.todos.unshift({id:'t'+it.id,text:String(it.text).slice(0,140),done:false,created:todayKey});
+      });
+      if(state.imported.length>400)state.imported=state.imported.slice(-300);
+      save();render();
+    }).catch(function(){});
+  }
   var tdDraft='';
   function todoView(){
     var open=state.todos.filter(function(t){return !t.done;}),done=state.todos.filter(function(t){return t.done;});
@@ -1305,6 +1320,8 @@ body{overscroll-behavior:none;touch-action:manipulation}
     }
   });
   document.addEventListener('input',function(e){if(e.target&&e.target.id==='tdIn')tdDraft=e.target.value;});
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)pullInbox();});
+  pullInbox();
   document.addEventListener('submit',function(e){
     if(!e.target||e.target.id!=='tdForm')return;
     e.preventDefault();
